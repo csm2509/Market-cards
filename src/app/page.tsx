@@ -13,7 +13,6 @@ import GradientPicker from "@/components/GradientPicker";
 import FooterToggle from "@/components/FooterToggle";
 import CardPreview from "@/components/CardPreview";
 import CardTemplate from "@/components/CardTemplate";
-import ExportModal from "@/components/ExportModal";
 
 export default function HomePage() {
   // --- State ---
@@ -23,7 +22,6 @@ export default function HomePage() {
   );
   const [showFooter, setShowFooter] = useState(true);
   const [footerText, setFooterText] = useState("Giovanna Crescitelli");
-  const [showExportModal, setShowExportModal] = useState(false);
   const [exporting, setExporting] = useState(false);
   const [exportFormat, setExportFormat] = useState<ExportFormat>("horizontal");
 
@@ -79,18 +77,17 @@ export default function HomePage() {
 
   // --- Export ---
   const handleExport = useCallback(
-    async (format: ExportFormat) => {
-      setExportFormat(format);
+    async () => {
       setExporting(true);
 
-      // Small delay to let the CardTemplate render with the new format
-      await new Promise((resolve) => setTimeout(resolve, 100));
+      // Small delay to let the CardTemplate render
+      await new Promise((resolve) => setTimeout(resolve, 150));
 
       try {
         const node = cardRef.current;
         if (!node) throw new Error("Card não encontrado");
 
-        const dims = EXPORT_DIMENSIONS[format];
+        const dims = EXPORT_DIMENSIONS[exportFormat];
 
         const dataUrl = await toPng(node, {
           width: dims.width,
@@ -107,7 +104,7 @@ export default function HomePage() {
         const link = document.createElement("a");
         const now = new Date();
         const dateStr = now.toISOString().slice(0, 10);
-        link.download = `market-card-${format}-${dateStr}.png`;
+        link.download = `market-card-${exportFormat}-${dateStr}.png`;
         link.href = dataUrl;
         link.click();
       } catch (error) {
@@ -115,7 +112,6 @@ export default function HomePage() {
         alert("Erro ao gerar a imagem. Tente novamente.");
       } finally {
         setExporting(false);
-        setShowExportModal(false);
       }
     },
     [exportFormat]
@@ -209,6 +205,48 @@ export default function HomePage() {
               />
             </div>
 
+            {/* Format Selector */}
+            <div className="section-card">
+              <h2 className="section-title">
+                <span>📐</span>
+                Formato do Card
+              </h2>
+              <div className="grid grid-cols-2 gap-3">
+                <button
+                  type="button"
+                  onClick={() => setExportFormat("horizontal")}
+                  className={`flex flex-col items-center justify-center p-3 rounded-xl border text-center transition-all duration-200 cursor-pointer
+                    ${
+                      exportFormat === "horizontal"
+                        ? "border-indigo-500 bg-indigo-500/10 text-zinc-100"
+                        : "border-white/[0.06] bg-white/[0.02] text-zinc-400 hover:bg-white/[0.04]"
+                    }`}
+                >
+                  <svg className="w-5 h-5 mb-1" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                    <path strokeLinecap="round" strokeLinejoin="round" d="M9.75 17L9 20l-1 1h8l-1-1-.75-3M3 13h18M5 17h14a2 2 0 002-2V5a2 2 0 00-2-2H5a2 2 0 00-2 2v10a2 2 0 002 2z" />
+                  </svg>
+                  <span className="text-xs font-semibold">Horizontal</span>
+                  <span className="text-[10px] opacity-60">LinkedIn (1200x630)</span>
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setExportFormat("vertical")}
+                  className={`flex flex-col items-center justify-center p-3 rounded-xl border text-center transition-all duration-200 cursor-pointer
+                    ${
+                      exportFormat === "vertical"
+                        ? "border-indigo-500 bg-indigo-500/10 text-zinc-100"
+                        : "border-white/[0.06] bg-white/[0.02] text-zinc-400 hover:bg-white/[0.04]"
+                    }`}
+                >
+                  <svg className="w-5 h-5 mb-1" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                    <path strokeLinecap="round" strokeLinejoin="round" d="M12 18h.01M8 21h8a2 2 0 002-2V5a2 2 0 00-2-2H8a2 2 0 00-2 2v14a2 2 0 002 2z" />
+                  </svg>
+                  <span className="text-xs font-semibold">Vertical</span>
+                  <span className="text-[10px] opacity-60">Status/Stories (1080x1920)</span>
+                </button>
+              </div>
+            </div>
+
             {/* Gradient Picker */}
             <div className="section-card">
               <GradientPicker
@@ -229,24 +267,36 @@ export default function HomePage() {
 
             {/* Generate Button */}
             <button
-              onClick={() => setShowExportModal(true)}
-              disabled={selectedAssets.length === 0 || loading}
-              className="btn-primary w-full flex items-center justify-center gap-3 text-base"
+              onClick={handleExport}
+              disabled={selectedAssets.length === 0 || loading || exporting}
+              className="btn-primary w-full flex items-center justify-center gap-3 text-base cursor-pointer disabled:opacity-50"
             >
-              <svg
-                className="w-5 h-5"
-                fill="none"
-                viewBox="0 0 24 24"
-                stroke="currentColor"
-                strokeWidth={2}
-              >
-                <path
-                  strokeLinecap="round"
-                  strokeLinejoin="round"
-                  d="M4 16l4.586-4.586a2 2 0 012.828 0L16 16m-2-2l1.586-1.586a2 2 0 012.828 0L20 14m-6-6h.01M6 20h12a2 2 0 002-2V6a2 2 0 00-2-2H6a2 2 0 00-2 2v12a2 2 0 002 2z"
-                />
-              </svg>
-              Gerar Imagem
+              {exporting ? (
+                <>
+                  <svg className="animate-spin -ml-1 mr-3 h-5 w-5 text-white" fill="none" viewBox="0 0 24 24">
+                    <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" />
+                    <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z" />
+                  </svg>
+                  Gerando Imagem...
+                </>
+              ) : (
+                <>
+                  <svg
+                    className="w-5 h-5"
+                    fill="none"
+                    viewBox="0 0 24 24"
+                    stroke="currentColor"
+                    strokeWidth={2}
+                  >
+                    <path
+                      strokeLinecap="round"
+                      strokeLinejoin="round"
+                      d="M4 16l4.586-4.586a2 2 0 012.828 0L16 16m-2-2l1.586-1.586a2 2 0 012.828 0L20 14m-6-6h.01M6 20h12a2 2 0 002-2V6a2 2 0 00-2-2H6a2 2 0 00-2 2v12a2 2 0 002 2z"
+                    />
+                  </svg>
+                  Gerar e Baixar Imagem
+                </>
+              )}
             </button>
           </div>
 
@@ -261,6 +311,7 @@ export default function HomePage() {
                 gradient={selectedGradient}
                 showFooter={showFooter}
                 footerText={footerText}
+                format={exportFormat}
               />
             </div>
           </div>
@@ -286,15 +337,6 @@ export default function HomePage() {
           format={exportFormat}
         />
       </div>
-
-      {/* ===== Export Modal ===== */}
-      <ExportModal
-        isOpen={showExportModal}
-        onClose={() => setShowExportModal(false)}
-        cardRef={cardRef}
-        onExport={handleExport}
-        exporting={exporting}
-      />
 
       {/* ===== Footer ===== */}
       <footer className="border-t border-white/[0.04] py-4">

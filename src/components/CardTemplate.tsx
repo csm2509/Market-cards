@@ -224,7 +224,19 @@ const CardTemplate = React.forwardRef<HTMLDivElement, CardTemplateProps>(
               const quote = asset.quote;
               const price = quote?.price;
               const currency = quote?.currency || "USD";
-              const change = formatChange(quote?.changePercent);
+              const changePercent = quote?.changePercent;
+              const change = formatChange(changePercent);
+
+              // Cores e estilos do badge da variação
+              let badgeBg = "rgba(255, 255, 255, 0.05)";
+              let badgeBorder = "rgba(255, 255, 255, 0.1)";
+              if (changePercent != null && changePercent > 0) {
+                badgeBg = "rgba(34, 197, 94, 0.15)";
+                badgeBorder = "rgba(34, 197, 94, 0.25)";
+              } else if (changePercent != null && changePercent < 0) {
+                badgeBg = "rgba(239, 68, 68, 0.15)";
+                badgeBorder = "rgba(239, 68, 68, 0.25)";
+              }
 
               return (
                 <div
@@ -233,38 +245,54 @@ const CardTemplate = React.forwardRef<HTMLDivElement, CardTemplateProps>(
                     display: "flex",
                     alignItems: "center",
                     justifyContent: "space-between",
+                    background: "rgba(0, 0, 0, 0.2)",
+                    border: "1px solid rgba(255, 255, 255, 0.06)",
+                    borderRadius: format === "vertical" ? "16px" : "12px",
+                    padding: format === "vertical" ? "18px 24px" : "10px 16px",
+                    boxShadow: "0 4px 20px rgba(0, 0, 0, 0.15)",
+                    backdropFilter: "blur(10px)",
                   }}
                 >
                   {/* Nome do ativo */}
-                  <span
-                    style={{
-                      fontSize: s.assetNameSize,
-                      fontWeight: 500,
-                      color: "rgba(255,255,255,0.95)",
-                      flex: 1,
-                      overflow: "hidden",
-                      textOverflow: "ellipsis",
-                      whiteSpace: "nowrap",
-                      marginRight: 16,
-                    }}
-                  >
-                    {asset.nome}
-                  </span>
+                  <div style={{ display: "flex", flexDirection: "column", flex: 1, minWidth: 0, marginRight: 16 }}>
+                    <span
+                      style={{
+                        fontSize: s.assetNameSize,
+                        fontWeight: 600,
+                        color: "#ffffff",
+                        overflow: "hidden",
+                        textOverflow: "ellipsis",
+                        whiteSpace: "nowrap",
+                      }}
+                    >
+                      {asset.nome}
+                    </span>
+                    <span
+                      style={{
+                        fontSize: s.assetNameSize - (format === "vertical" ? 6 : 4),
+                        color: "rgba(255, 255, 255, 0.4)",
+                        fontWeight: 500,
+                        marginTop: 2,
+                      }}
+                    >
+                      {asset.ticker}
+                    </span>
+                  </div>
 
                   {/* Preço + variação */}
                   <div
                     style={{
                       display: "flex",
                       alignItems: "center",
-                      gap: format === "vertical" ? 16 : 12,
+                      gap: format === "vertical" ? 20 : 14,
                       flexShrink: 0,
                     }}
                   >
                     <span
                       style={{
-                        fontSize: s.priceSize,
-                        fontWeight: 600,
-                        color: "rgba(255,255,255,0.9)",
+                        fontSize: s.priceSize + (format === "vertical" ? 2 : 1),
+                        fontWeight: 700,
+                        color: "#ffffff",
                         fontVariantNumeric: "tabular-nums",
                       }}
                     >
@@ -273,10 +301,14 @@ const CardTemplate = React.forwardRef<HTMLDivElement, CardTemplateProps>(
                     <span
                       style={{
                         fontSize: s.changeSize,
-                        fontWeight: 600,
+                        fontWeight: 700,
                         color: change.color,
-                        minWidth: format === "vertical" ? 100 : 80,
-                        textAlign: "right",
+                        background: badgeBg,
+                        border: `1px solid ${badgeBorder}`,
+                        borderRadius: "8px",
+                        padding: format === "vertical" ? "6px 12px" : "4px 8px",
+                        minWidth: format === "vertical" ? "105px" : "85px",
+                        textAlign: "center",
                         fontVariantNumeric: "tabular-nums",
                       }}
                     >

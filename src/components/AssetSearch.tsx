@@ -11,6 +11,70 @@ interface AssetSearchProps {
   onSelect: (asset: { nome: string; ticker: string; categoria: string }) => void;
 }
 
+// ─── Helpers ─────────────────────────────────────────────────────────────────
+
+/**
+ * Analisa uma busca para ver se corresponde a um contrato futuro da CME
+ * no formato padrão: {Raiz}{Mês}{Ano} (ex: ZCZ6, ZCZ26, ZSF26, CLF26).
+ * Retorna o ticker correspondente no Yahoo Finance e o nome formatado.
+ */
+function parseCmeCode(query: string): { nome: string; ticker: string; categoria: string } | null {
+  const clean = query.trim().toUpperCase();
+  // Padrão: 2 letras (raiz) + 1 letra (mês) + 1 ou 2 dígitos (ano)
+  const match = clean.match(/^([A-Z]{2})([FGHJKMNQUVXZ])(\d{1,2})$/);
+  if (!match) return null;
+
+  const [, root, month, year] = match;
+  const yearStr = year.length === 1 ? `2${year}` : year; // ex: "6" -> "26"
+
+  const exchangeMap: Record<string, string> = {
+    ZC: ".CBT", // Milho
+    ZS: ".CBT", // Soja
+    ZW: ".CBT", // Trigo Chicago (SRW)
+    KE: ".CBT", // Trigo KC (HRW)
+    ZM: ".CBT", // Farelo de Soja
+    ZL: ".CBT", // Óleo de Soja
+    CL: ".NYM", // WTI Crude Oil
+    NG: ".NYM", // Gás Natural
+    BZ: ".ICE", // Brent Crude Oil
+    GC: ".CMX", // Ouro
+    SI: ".CMX", // Prata
+    HG: ".CMX", // Cobre
+  };
+
+  const nameMap: Record<string, string> = {
+    ZC: "Milho",
+    ZS: "Soja",
+    ZW: "Trigo Chicago (SRW)",
+    KE: "Trigo KC (HRW)",
+    ZM: "Farelo de Soja",
+    ZL: "Óleo de Soja",
+    CL: "Petróleo WTI",
+    NG: "Gás Natural",
+    BZ: "Petróleo Brent",
+    GC: "Ouro",
+    SI: "Prata",
+    HG: "Cobre",
+  };
+
+  const monthMap: Record<string, string> = {
+    F: "Jan", G: "Fev", H: "Mar", J: "Abr", K: "Mai", M: "Jun",
+    N: "Jul", Q: "Ago", U: "Set", V: "Out", X: "Nov", Z: "Dez"
+  };
+
+  const suffix = exchangeMap[root];
+  if (!suffix) return null; // Raiz não suportada/mapeada
+
+  const ticker = `${root}${month}${yearStr}${suffix}`;
+  const friendlyName = `${nameMap[root]} (${monthMap[month]}/${yearStr})`;
+
+  return {
+    nome: friendlyName,
+    ticker,
+    categoria: "Contratos Futuros CME",
+  };
+}
+
 // ─── Componente ─────────────────────────────────────────────────────────────
 export default function AssetSearch({ selectedTickers, onSelect }: AssetSearchProps) {
   const [query, setQuery] = useState('');
@@ -24,12 +88,47 @@ export default function AssetSearch({ selectedTickers, onSelect }: AssetSearchPr
     const q = query.trim().toLowerCase();
     if (q.length === 0) return [];
 
-    return ASSETS.filter(
+    // 1. Busca na lista pré-definida
+    const baseFiltered = ASSETS.filter(
       (a) =>
         a.nome.toLowerCase().includes(q) ||
         a.nomeEn.toLowerCase().includes(q) ||
         a.ticker.toLowerCase().includes(q),
     );
+
+    const results: AssetConfig[] = [...baseFiltered];
+
+    // 2. Tentar decodificar um código CME (ex: ZCZ6)
+    const cmeParsed = parseCmeCode(query);
+    if (cmeParsed) {
+      // Evita duplicar se o ticker já estiver na lista base
+      if (!results.some((r) => r.ticker.toUpperCase() === cmeParsed.ticker.toUpperCase())) {
+        results.push({
+          nome: cmeParsed.nome,
+          nomeEn: cmeParsed.nome,
+          ticker: cmeParsed.ticker,
+          categoria: cmeParsed.categoria,
+        });
+      }
+    }
+
+    // 3. Fallback: adicionar como ticker personalizado se a busca tiver 3+ caracteres
+    const uppercaseQuery = query.trim().toUpperCase();
+    const hasExactMatch = results.some((r) => r.ticker.toUpperCase() === uppercaseQuery);
+    
+    // Ignora se for o padrão de código CME que já foi tratado
+    const isCmePattern = uppercaseQuery.match(/^[A-Z]{2}[FGHJKMNQUVXZ]\d{1,2}$/);
+
+    if (uppercaseQuery.length >= 3 && !hasExactMatch && !isCmePattern) {
+      results.push({
+        nome: `Ativo: ${uppercaseQuery}`,
+        nomeEn: `Asset: ${uppercaseQuery}`,
+        ticker: uppercaseQuery,
+        categoria: "Ativo Personalizado (Yahoo)",
+      });
+    }
+
+    return results;
   }, [query]);
 
   // ── Agrupar resultados por categoria ────────────────────────────────────
