@@ -127,17 +127,18 @@ function SortableAssetItem({ asset, onRemove, loading }: SortableAssetItemProps)
             <span className="text-zinc-100 font-mono text-sm">
               {formatPrice(quote.price, quote.currency)}
             </span>
-            {quote.changePercent !== null && (
-              <span
-                className={`text-xs font-medium ${
-                  isPositive ? "text-green-400" : isNegative ? "text-red-400" : "text-zinc-400"
-                }`}
-              >
-                {isPositive && "▲ "}
-                {isNegative && "▼ "}
-                {formatChangePercent(quote.changePercent)}
-              </span>
-            )}
+            <div className="flex flex-col items-end text-[11px] font-medium gap-0.5 mt-0.5">
+              {quote.changePercent !== null && (
+                <span className={quote.changePercent >= 0 ? "text-green-400" : "text-red-400"}>
+                  1D: {quote.changePercent >= 0 ? "▲" : "▼"} {Math.abs(quote.changePercent).toFixed(2)}%
+                </span>
+              )}
+              {quote.changePercentWeekly !== null && (
+                <span className={quote.changePercentWeekly >= 0 ? "text-green-400" : "text-red-400"}>
+                  1S: {quote.changePercentWeekly >= 0 ? "▲" : "▼"} {Math.abs(quote.changePercentWeekly).toFixed(2)}%
+                </span>
+              )}
+            </div>
           </>
         ) : null}
       </div>

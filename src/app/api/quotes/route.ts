@@ -38,7 +38,7 @@ export async function GET(request: NextRequest) {
 
   for (const ticker of tickers) {
     try {
-      const url = `https://query1.finance.yahoo.com/v8/finance/chart/${encodeURIComponent(ticker)}?range=5d&interval=1d&includePrePost=false`;
+      const url = `https://query1.finance.yahoo.com/v8/finance/chart/${encodeURIComponent(ticker)}?range=10d&interval=1d&includePrePost=false`;
 
       const response = await fetch(url, {
         headers: {
@@ -74,6 +74,23 @@ export async function GET(request: NextRequest) {
         );
       }
 
+      // Cálculo da variação semanal (comparação com 5 dias úteis atrás)
+      const closePrices = result.indicators?.quote?.[0]?.close || [];
+      const validCloses = closePrices.filter((val: any) => val !== null) as number[];
+      const L = validCloses.length;
+      
+      let changePercentWeekly: number | null = null;
+      if (L > 0 && currentPrice) {
+        // Se temos pelo menos 6 dias de dados, o dia de 1 semana atrás (5 dias úteis) está no índice L - 6.
+        // Caso contrário, usamos o preço mais antigo disponível.
+        const price5DaysAgo = L >= 6 ? validCloses[L - 6] : validCloses[0];
+        if (price5DaysAgo) {
+          changePercentWeekly = parseFloat(
+            (((currentPrice - price5DaysAgo) / price5DaysAgo) * 100).toFixed(2)
+          );
+        }
+      }
+
       const marketTime = meta.regularMarketTime
         ? new Date(meta.regularMarketTime * 1000).toISOString()
         : null;
@@ -84,6 +101,7 @@ export async function GET(request: NextRequest) {
         previousClose,
         change,
         changePercent,
+        changePercentWeekly,
         currency: meta.currency ?? "USD",
         marketTime,
         shortName: meta.shortName ?? meta.longName ?? null,

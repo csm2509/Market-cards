@@ -69,6 +69,41 @@ function formatChange(changePercent: number | null | undefined): {
   return { text: `▼ ${Math.abs(changePercent).toFixed(2)}%`, color: "#ef4444" }; // red-500
 }
 
+/** Formata variação com rótulo, seta, cores e estilos de badge */
+function formatChangeValue(val: number | null | undefined, label: string) {
+  if (val == null) {
+    return {
+      text: `${label} —`,
+      color: "rgba(255,255,255,0.4)",
+      bg: "rgba(255, 255, 255, 0.03)",
+      border: "rgba(255, 255, 255, 0.06)",
+    };
+  }
+  
+  if (val > 0) {
+    return {
+      text: `${label} ▲ ${val.toFixed(2)}%`,
+      color: "#22c55e", // green-500
+      bg: "rgba(34, 197, 94, 0.12)",
+      border: "rgba(34, 197, 94, 0.22)",
+    };
+  } else if (val < 0) {
+    return {
+      text: `${label} ▼ ${Math.abs(val).toFixed(2)}%`,
+      color: "#ef4444", // red-500
+      bg: "rgba(239, 68, 68, 0.12)",
+      border: "rgba(239, 68, 68, 0.22)",
+    };
+  } else {
+    return {
+      text: `${label} 0.00%`,
+      color: "rgba(255,255,255,0.6)",
+      bg: "rgba(255, 255, 255, 0.05)",
+      border: "rgba(255, 255, 255, 0.1)",
+    };
+  }
+}
+
 // ─── Tamanhos por formato ────────────────────────────────────────────────────
 const SIZES = {
   horizontal: {
@@ -224,19 +259,8 @@ const CardTemplate = React.forwardRef<HTMLDivElement, CardTemplateProps>(
               const quote = asset.quote;
               const price = quote?.price;
               const currency = quote?.currency || "USD";
-              const changePercent = quote?.changePercent;
-              const change = formatChange(changePercent);
-
-              // Cores e estilos do badge da variação
-              let badgeBg = "rgba(255, 255, 255, 0.05)";
-              let badgeBorder = "rgba(255, 255, 255, 0.1)";
-              if (changePercent != null && changePercent > 0) {
-                badgeBg = "rgba(34, 197, 94, 0.15)";
-                badgeBorder = "rgba(34, 197, 94, 0.25)";
-              } else if (changePercent != null && changePercent < 0) {
-                badgeBg = "rgba(239, 68, 68, 0.15)";
-                badgeBorder = "rgba(239, 68, 68, 0.25)";
-              }
+              const daily = formatChangeValue(quote?.changePercent, "1D");
+              const weekly = formatChangeValue(quote?.changePercentWeekly, "1S");
 
               return (
                 <div
@@ -302,9 +326,9 @@ const CardTemplate = React.forwardRef<HTMLDivElement, CardTemplateProps>(
                       style={{
                         fontSize: s.changeSize,
                         fontWeight: 700,
-                        color: change.color,
-                        background: badgeBg,
-                        border: `1px solid ${badgeBorder}`,
+                        color: daily.color,
+                        background: daily.bg,
+                        border: `1px solid ${daily.border}`,
                         borderRadius: "8px",
                         padding: format === "vertical" ? "6px 12px" : "4px 8px",
                         minWidth: format === "vertical" ? "105px" : "85px",
@@ -312,7 +336,23 @@ const CardTemplate = React.forwardRef<HTMLDivElement, CardTemplateProps>(
                         fontVariantNumeric: "tabular-nums",
                       }}
                     >
-                      {change.text}
+                      {daily.text}
+                    </span>
+                    <span
+                      style={{
+                        fontSize: s.changeSize,
+                        fontWeight: 700,
+                        color: weekly.color,
+                        background: weekly.bg,
+                        border: `1px solid ${weekly.border}`,
+                        borderRadius: "8px",
+                        padding: format === "vertical" ? "6px 12px" : "4px 8px",
+                        minWidth: format === "vertical" ? "105px" : "85px",
+                        textAlign: "center",
+                        fontVariantNumeric: "tabular-nums",
+                      }}
+                    >
+                      {weekly.text}
                     </span>
                   </div>
                 </div>

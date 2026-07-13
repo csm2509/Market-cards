@@ -5,6 +5,7 @@ export interface QuoteData {
   previousClose: number | null;
   change: number | null;
   changePercent: number | null;
+  changePercentWeekly: number | null;
   currency: string;
   marketTime: string | null;
   shortName: string | null;
