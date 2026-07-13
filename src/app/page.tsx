@@ -324,6 +324,8 @@ export default function HomePage() {
           position: "fixed",
           left: "-9999px",
           top: "-9999px",
+          width: `${EXPORT_DIMENSIONS[exportFormat].width}px`,
+          height: `${EXPORT_DIMENSIONS[exportFormat].height}px`,
           zIndex: -1,
           pointerEvents: "none",
         }}

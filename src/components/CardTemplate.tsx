@@ -1,7 +1,7 @@
 "use client";
 
 import React from "react";
-import { SelectedAsset, GradientPreset, ExportFormat } from "@/lib/types";
+import { SelectedAsset, GradientPreset, ExportFormat, EXPORT_DIMENSIONS } from "@/lib/types";
 import { getGradientCSS } from "@/lib/gradients";
 
 // ─── Props ───────────────────────────────────────────────────────────────────
@@ -15,6 +15,8 @@ interface CardTemplateProps {
 }
 
 // ─── Helpers ─────────────────────────────────────────────────────────────────
+// ... [rest of helpers code remains unchanged] ...
+// (We are replacing up to the component principal return)
 
 /** Formata a data em português: 'Quinta-feira, 03 de Julho de 2026' */
 function formatDatePtBR(isoDate?: string): string {
@@ -160,14 +162,15 @@ function ChartIcon({ size }: { size: number }) {
 const CardTemplate = React.forwardRef<HTMLDivElement, CardTemplateProps>(
   ({ assets, gradient, showFooter, footerText, format, date }, ref) => {
     const s = SIZES[format];
+    const dims = EXPORT_DIMENSIONS[format];
     const gradientCSS = getGradientCSS(gradient);
 
     return (
       <div
         ref={ref}
         style={{
-          width: "100%",
-          height: "100%",
+          width: `${dims.width}px`,
+          height: `${dims.height}px`,
           background: gradientCSS,
           fontFamily: "'Inter', system-ui, sans-serif",
           color: "#ffffff",
