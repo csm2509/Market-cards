@@ -6,6 +6,7 @@ import type { SelectedAsset, ExportFormat, GradientPreset } from "@/lib/types";
 import { EXPORT_DIMENSIONS } from "@/lib/types";
 import { GRADIENT_PRESETS } from "@/lib/gradients";
 import { useQuotes } from "@/hooks/useQuotes";
+import { ASSETS } from "@/config/assets";
 
 import AssetSearch from "@/components/AssetSearch";
 import SelectedAssets from "@/components/SelectedAssets";
@@ -13,6 +14,44 @@ import GradientPicker from "@/components/GradientPicker";
 import FooterToggle from "@/components/FooterToggle";
 import CardPreview from "@/components/CardPreview";
 import CardTemplate from "@/components/CardTemplate";
+
+// Helper para decodificar cme code ao inicializar da URL
+function parseCmeCode(query: string) {
+  const clean = query.trim().toUpperCase();
+  const match = clean.match(/^([A-Z]{2})([FGHJKMNQUVXZ])(\d{1,2})$/);
+  if (!match) return null;
+
+  const [, root, month, year] = match;
+  const yearStr = year.length === 1 ? `2${year}` : year;
+
+  const exchangeMap: Record<string, string> = {
+    ZC: ".CBT", ZS: ".CBT", ZW: ".CBT", KE: ".CBT", ZM: ".CBT", ZL: ".CBT",
+    CL: ".NYM", NG: ".NYM", BZ: ".ICE", GC: ".CMX", SI: ".CMX", HG: ".CMX",
+  };
+
+  const nameMap: Record<string, string> = {
+    ZC: "Milho", ZS: "Soja", ZW: "Trigo Chicago (SRW)", KE: "Trigo KC (HRW)",
+    ZM: "Farelo de Soja", ZL: "Óleo de Soja", CL: "Petróleo WTI", NG: "Gás Natural",
+    BZ: "Petróleo Brent", GC: "Ouro", SI: "Prata", HG: "Cobre",
+  };
+
+  const monthMap: Record<string, string> = {
+    F: "Jan", G: "Fev", H: "Mar", J: "Abr", K: "Mai", M: "Jun",
+    N: "Jul", Q: "Ago", U: "Set", V: "Out", X: "Nov", Z: "Dez"
+  };
+
+  const suffix = exchangeMap[root];
+  if (!suffix) return null;
+
+  const ticker = `${root}${month}${yearStr}${suffix}`;
+  const friendlyName = `${nameMap[root]} (${monthMap[month]}/${yearStr})`;
+
+  return {
+    nome: friendlyName,
+    ticker,
+    categoria: "Contratos Futuros CME",
+  };
+}
 
 export default function HomePage() {
   // --- State ---
@@ -24,6 +63,11 @@ export default function HomePage() {
   const [footerText, setFooterText] = useState("Giovanna Crescitelli");
   const [exporting, setExporting] = useState(false);
   const [exportFormat, setExportFormat] = useState<ExportFormat>("horizontal");
+  const [isInitialized, setIsInitialized] = useState(false);
+
+  // --- Auto Refresh State ---
+  const [autoRefresh, setAutoRefresh] = useState(true);
+  const [countdown, setCountdown] = useState(30);
 
   // --- Refs ---
   const cardRef = useRef<HTMLDivElement>(null);
@@ -41,7 +85,7 @@ export default function HomePage() {
   const handleAddAsset = useCallback(
     (asset: { nome: string; ticker: string; categoria: string }) => {
       const newAsset: SelectedAsset = {
-        id: `${asset.ticker}-${Date.now()}`,
+        id: `${asset.ticker}-${Date.now()}-${Math.random()}`,
         nome: asset.nome,
         ticker: asset.ticker,
         categoria: asset.categoria,
@@ -73,6 +117,7 @@ export default function HomePage() {
   const handleRefreshQuotes = useCallback(() => {
     const tickers = selectedAssets.map((a) => a.ticker);
     if (tickers.length > 0) fetchQuotes(tickers);
+    setCountdown(30);
   }, [selectedAssets, fetchQuotes]);
 
   // --- Export ---
@@ -117,16 +162,119 @@ export default function HomePage() {
     [exportFormat]
   );
 
-  // Fetch all quotes on initial load when assets change
+  // 1. Inicializar do link (URL search parameters)
   useEffect(() => {
-    // Only fetch if we have assets without quotes
+    if (typeof window === "undefined") return;
+    const params = new URLSearchParams(window.location.search);
+    const tickersParam = params.get("tickers");
+    const gradientParam = params.get("gradient");
+    const footerParam = params.get("footer");
+    const textParam = params.get("text");
+
+    if (tickersParam) {
+      const tickers = tickersParam.split(",").map(t => t.trim()).filter(Boolean);
+      const initialAssets: SelectedAsset[] = tickers.map((ticker) => {
+        // Encontrar no config base
+        const baseAsset = ASSETS.find(a => a.ticker.toUpperCase() === ticker.toUpperCase());
+        if (baseAsset) {
+          return {
+            id: `${baseAsset.ticker}-${Date.now()}-${Math.random()}`,
+            nome: baseAsset.nome,
+            ticker: baseAsset.ticker,
+            categoria: baseAsset.categoria,
+          };
+        }
+
+        // Tentar decodificar como futuro CME
+        const cmeParsed = parseCmeCode(ticker);
+        if (cmeParsed) {
+          return {
+            id: `${cmeParsed.ticker}-${Date.now()}-${Math.random()}`,
+            nome: cmeParsed.nome,
+            ticker: cmeParsed.ticker,
+            categoria: cmeParsed.categoria,
+          };
+        }
+
+        // Fallback ativo genérico/personalizado
+        return {
+          id: `${ticker}-${Date.now()}-${Math.random()}`,
+          nome: `Ativo: ${ticker.toUpperCase()}`,
+          ticker: ticker.toUpperCase(),
+          categoria: "Ativo Personalizado (Yahoo)",
+        };
+      });
+
+      setSelectedAssets(initialAssets);
+      fetchQuotes(tickers);
+    }
+
+    if (gradientParam) {
+      const preset = GRADIENT_PRESETS.find((g) => g.id === gradientParam);
+      if (preset) setSelectedGradient(preset);
+    }
+
+    if (footerParam) {
+      setShowFooter(footerParam === "true");
+    }
+
+    if (textParam) {
+      setFooterText(textParam);
+    }
+
+    setIsInitialized(true);
+  }, [fetchQuotes]);
+
+  // 2. Sincronizar estado na URL (Compartilhamento)
+  useEffect(() => {
+    if (!isInitialized) return;
+    const tickers = selectedAssets.map(a => a.ticker);
+    const params = new URLSearchParams();
+    if (tickers.length > 0) {
+      params.set("tickers", tickers.join(","));
+    }
+    params.set("gradient", selectedGradient.id);
+    params.set("footer", showFooter ? "true" : "false");
+    if (footerText) {
+      params.set("text", footerText);
+    }
+
+    const newUrl = `${window.location.pathname}?${params.toString()}`;
+    window.history.replaceState({ path: newUrl }, "", newUrl);
+  }, [selectedAssets, selectedGradient, showFooter, footerText, isInitialized]);
+
+  // 3. Atualização automática em tempo real (Auto Refresh)
+  useEffect(() => {
+    if (!autoRefresh || selectedAssets.length === 0 || !isInitialized) {
+      setCountdown(30);
+      return;
+    }
+
+    const timer = setInterval(() => {
+      setCountdown((prev) => {
+        if (prev <= 1) {
+          // Atualiza as cotações em background
+          const tickers = selectedAssets.map((a) => a.ticker);
+          fetchQuotes(tickers);
+          return 30;
+        }
+        return prev - 1;
+      });
+    }, 1000);
+
+    return () => clearInterval(timer);
+  }, [autoRefresh, selectedAssets, fetchQuotes, isInitialized]);
+
+  // Busca inicial padrão de cotações se os ativos mudarem manualmente
+  useEffect(() => {
+    if (!isInitialized) return;
     const tickersWithoutQuotes = selectedAssets
       .filter((a) => !quotes.has(a.ticker))
       .map((a) => a.ticker);
     if (tickersWithoutQuotes.length > 0) {
       fetchQuotes(tickersWithoutQuotes);
     }
-  }, [selectedAssets, quotes, fetchQuotes]);
+  }, [selectedAssets, quotes, fetchQuotes, isInitialized]);
 
   return (
     <div className="flex-1 flex flex-col">
@@ -156,29 +304,63 @@ export default function HomePage() {
               Gerador de cards de fechamento de mercado
             </p>
           </div>
-          {selectedAssets.length > 0 && (
-            <button
-              onClick={handleRefreshQuotes}
-              disabled={loading}
-              className="hidden sm:flex items-center gap-2 text-sm text-zinc-400 hover:text-zinc-200 transition-colors px-3 py-2 rounded-lg hover:bg-white/[0.04]"
-              title="Atualizar cotações"
-            >
-              <svg
-                className={`w-4 h-4 ${loading ? "animate-spin" : ""}`}
-                fill="none"
-                viewBox="0 0 24 24"
-                stroke="currentColor"
-                strokeWidth={2}
+
+          {/* Indicador Ao Vivo e Refresh */}
+          <div className="flex items-center gap-3 flex-wrap justify-end">
+            {selectedAssets.length > 0 && (
+              <div className="flex items-center gap-2 bg-white/[0.02] border border-white/[0.06] rounded-xl px-3 py-1.5">
+                <span className="flex h-2 w-2 relative">
+                  <span className={`animate-ping absolute inline-flex h-full w-full rounded-full opacity-75 ${autoRefresh ? "bg-emerald-400" : "bg-zinc-500"}`}></span>
+                  <span className={`relative inline-flex rounded-full h-2 w-2 ${autoRefresh ? "bg-emerald-500" : "bg-zinc-600"}`}></span>
+                </span>
+                <span className="text-xs font-semibold text-zinc-400 min-w-[85px]">
+                  {autoRefresh ? `Ao vivo (${countdown}s)` : "Ao vivo pausado"}
+                </span>
+                
+                {/* Botão Play/Pause */}
+                <button
+                  type="button"
+                  onClick={() => setAutoRefresh(!autoRefresh)}
+                  className="text-zinc-500 hover:text-zinc-300 transition-colors ml-1 p-0.5 cursor-pointer"
+                  title={autoRefresh ? "Pausar atualização automática" : "Iniciar atualização automática"}
+                >
+                  {autoRefresh ? (
+                    <svg className="w-3.5 h-3.5" fill="currentColor" viewBox="0 0 24 24">
+                      <path d="M6 19h4V5H6v14zm8-14v14h4V5h-4z"/>
+                    </svg>
+                  ) : (
+                    <svg className="w-3.5 h-3.5" fill="currentColor" viewBox="0 0 24 24">
+                      <path d="M8 5v14l11-7z"/>
+                    </svg>
+                  )}
+                </button>
+              </div>
+            )}
+
+            {selectedAssets.length > 0 && (
+              <button
+                onClick={handleRefreshQuotes}
+                disabled={loading}
+                className="flex items-center gap-2 text-sm text-zinc-400 hover:text-zinc-200 transition-colors px-3 py-1.5 rounded-xl border border-white/[0.06] hover:bg-white/[0.04] disabled:opacity-50 cursor-pointer"
+                title="Atualizar cotações manualmente"
               >
-                <path
-                  strokeLinecap="round"
-                  strokeLinejoin="round"
-                  d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15"
-                />
-              </svg>
-              {loading ? "Atualizando..." : "Atualizar"}
-            </button>
-          )}
+                <svg
+                  className={`w-4 h-4 ${loading ? "animate-spin" : ""}`}
+                  fill="none"
+                  viewBox="0 0 24 24"
+                  stroke="currentColor"
+                  strokeWidth={2}
+                >
+                  <path
+                    strokeLinecap="round"
+                    strokeLinejoin="round"
+                    d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15"
+                  />
+                </svg>
+                {loading ? "Atualizando..." : "Atualizar"}
+              </button>
+            )}
+          </div>
         </div>
       </header>
 
