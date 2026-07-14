@@ -2,6 +2,7 @@
 
 import { useState, useCallback, useRef, useEffect, Suspense } from "react";
 import { useSearchParams, useRouter } from "next/navigation";
+import Link from "next/link";
 import { toPng } from "html-to-image";
 import type { SelectedAsset, ExportFormat, GradientPreset } from "@/lib/types";
 import { EXPORT_DIMENSIONS } from "@/lib/types";
@@ -239,28 +240,38 @@ function CompartilharContent() {
   };
 
   return (
-    <div className="flex-1 flex flex-col">
-      {/* ===== Header ===== */}
-      <header className="border-b border-white/[0.06] bg-white/[0.01] backdrop-blur-sm">
-        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-5 flex items-center justify-between">
-          <div className="flex items-center gap-4">
-            <button
-              onClick={handleBackToDashboard}
-              className="flex items-center justify-center w-9 h-9 rounded-xl border border-white/[0.06] bg-white/[0.02] text-zinc-400 hover:text-zinc-200 transition-colors cursor-pointer"
-              title="Voltar ao Dashboard Ao Vivo"
-            >
-              <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2.5}>
-                <path strokeLinecap="round" strokeLinejoin="round" d="M15 19l-7-7 7-7" />
-              </svg>
-            </button>
-            <div>
-              <h1 className="text-xl sm:text-2xl font-bold text-zinc-50 flex items-center gap-3">
-                Exportar e Compartilhar
-              </h1>
-              <p className="text-zinc-500 text-sm mt-0.5">
-                Personalize o design visual e gere seu card final
-              </p>
+    <div className="flex-1 flex flex-col min-h-screen bg-zinc-950 text-zinc-100">
+      {/* ===== Global Navigation Menu Header ===== */}
+      <header className="border-b border-white/[0.06] bg-zinc-900/50 backdrop-blur-xl sticky top-0 z-40">
+        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-4 flex items-center justify-between">
+          <div className="flex items-center gap-8">
+            {/* Logo */}
+            <div className="flex items-center gap-3">
+              <span className="flex items-center justify-center w-8 h-8 rounded-xl bg-indigo-500/10 border border-indigo-500/20">
+                <svg className="w-4 h-4 text-indigo-400" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2.5}>
+                  <path strokeLinecap="round" strokeLinejoin="round" d="M3 13h2l3-8 4 16 3-8h6" />
+                </svg>
+              </span>
+              <span className="font-bold text-lg tracking-tight bg-gradient-to-r from-zinc-50 to-zinc-300 bg-clip-text text-transparent">
+                Market Dash
+              </span>
             </div>
+
+            {/* Menu */}
+            <nav className="flex items-center gap-1.5">
+              <Link
+                href={`/?tickers=${selectedAssets.map(a => a.ticker).join(",")}`}
+                className="px-3.5 py-1.5 rounded-lg text-sm font-medium text-zinc-400 hover:text-zinc-200 hover:bg-white/[0.03] transition-colors"
+              >
+                📈 Dashboard
+              </Link>
+              <Link
+                href="/compartilhar"
+                className="px-3.5 py-1.5 rounded-lg text-sm font-medium bg-white/[0.06] text-white border border-white/[0.08]"
+              >
+                🎴 Gerador de Cards
+              </Link>
+            </nav>
           </div>
         </div>
       </header>
