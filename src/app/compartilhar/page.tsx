@@ -167,6 +167,19 @@ function CompartilharContent() {
     }));
   };
 
+  const moveAsset = (index: number, direction: "up" | "down") => {
+    const newAssets = [...selectedAssets];
+    const targetIndex = direction === "up" ? index - 1 : index + 1;
+    if (targetIndex < 0 || targetIndex >= newAssets.length) return;
+    
+    // Swap
+    const temp = newAssets[index];
+    newAssets[index] = newAssets[targetIndex];
+    newAssets[targetIndex] = temp;
+    
+    setSelectedAssets(newAssets);
+  };
+
   const handleSelectGradient = useCallback((id: string) => {
     const preset = GRADIENT_PRESETS.find((g) => g.id === id);
     if (preset) setSelectedGradient(preset);
@@ -234,9 +247,8 @@ function CompartilharContent() {
   };
 
   const handleBackToDashboard = () => {
-    // Retorna ao dashboard com os mesmos tickers
-    const tickers = selectedAssets.map(a => a.ticker).join(",");
-    router.push(`/?tickers=${tickers}`);
+    // Retorna ao dashboard principal
+    router.push("/");
   };
 
   return (
@@ -260,7 +272,7 @@ function CompartilharContent() {
             {/* Menu */}
             <nav className="flex items-center gap-1.5">
               <Link
-                href={`/?tickers=${selectedAssets.map(a => a.ticker).join(",")}`}
+                href="/"
                 className="px-3.5 py-1.5 rounded-lg text-sm font-medium text-zinc-400 hover:text-zinc-200 hover:bg-white/[0.03] transition-colors"
               >
                 📈 Dashboard
@@ -288,34 +300,62 @@ function CompartilharContent() {
                 Ativos no Card
               </h2>
               <p className="text-xs text-zinc-500 mb-3">
-                Selecione os ativos que deseja incluir na imagem final:
+                Selecione os ativos que deseja incluir e mude a ordem se necessário:
               </p>
               {selectedAssets.length === 0 ? (
                 <p className="text-sm text-zinc-500 py-2">Nenhum ativo vindo do Dashboard.</p>
               ) : (
-                <div className="space-y-2 max-h-48 overflow-y-auto pr-1">
-                  {selectedAssets.map((asset) => {
+                <div className="space-y-2 max-h-60 overflow-y-auto pr-1">
+                  {selectedAssets.map((asset, index) => {
                     const isChecked = enabledTickers[asset.ticker] !== false;
                     return (
-                      <label
+                      <div
                         key={asset.ticker}
-                        className={`flex items-center gap-3 px-3 py-2.5 rounded-xl border transition-all cursor-pointer select-none
+                        className={`flex items-center justify-between gap-3 px-3 py-2 rounded-xl border transition-all
                           ${isChecked 
                             ? "border-indigo-500/30 bg-indigo-500/5 text-zinc-200" 
                             : "border-white/[0.04] bg-white/[0.01] text-zinc-500 opacity-60"
                           }`}
                       >
-                        <input
-                          type="checkbox"
-                          checked={isChecked}
-                          onChange={() => handleToggleTicker(asset.ticker)}
-                          className="w-4 h-4 rounded text-indigo-600 bg-zinc-800 border-zinc-700 focus:ring-indigo-500"
-                        />
-                        <div className="flex-1 min-w-0">
-                          <div className="text-sm font-semibold truncate">{asset.nome}</div>
-                          <div className="text-[10px] opacity-70">{asset.ticker}</div>
+                        <label className="flex items-center gap-3 flex-1 min-w-0 cursor-pointer select-none">
+                          <input
+                            type="checkbox"
+                            checked={isChecked}
+                            onChange={() => handleToggleTicker(asset.ticker)}
+                            className="w-4 h-4 rounded text-indigo-600 bg-zinc-800 border-zinc-700 focus:ring-indigo-500 cursor-pointer"
+                          />
+                          <div className="flex-1 min-w-0">
+                            <div className="text-sm font-semibold truncate">{asset.nome}</div>
+                            <div className="text-[10px] opacity-70">{asset.ticker}</div>
+                          </div>
+                        </label>
+
+                        {/* Controles de Ordenação (Subir/Descer) */}
+                        <div className="flex items-center gap-1.5 flex-shrink-0">
+                          <button
+                            type="button"
+                            onClick={() => moveAsset(index, "up")}
+                            disabled={index === 0}
+                            className="p-1 rounded bg-white/[0.04] border border-white/[0.06] hover:bg-white/[0.08] text-zinc-400 hover:text-zinc-200 disabled:opacity-30 disabled:pointer-events-none transition-colors cursor-pointer"
+                            title="Mover para cima"
+                          >
+                            <svg className="w-3 h-3" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={3}>
+                              <path strokeLinecap="round" strokeLinejoin="round" d="M5 15l7-7 7 7" />
+                            </svg>
+                          </button>
+                          <button
+                            type="button"
+                            onClick={() => moveAsset(index, "down")}
+                            disabled={index === selectedAssets.length - 1}
+                            className="p-1 rounded bg-white/[0.04] border border-white/[0.06] hover:bg-white/[0.08] text-zinc-400 hover:text-zinc-200 disabled:opacity-30 disabled:pointer-events-none transition-colors cursor-pointer"
+                            title="Mover para baixo"
+                          >
+                            <svg className="w-3 h-3" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={3}>
+                              <path strokeLinecap="round" strokeLinejoin="round" d="M19 9l-7 7-7-7" />
+                            </svg>
+                          </button>
                         </div>
-                      </label>
+                      </div>
                     );
                   })}
                 </div>
