@@ -53,6 +53,7 @@ export default function HomePage() {
   const [selectedAssets, setSelectedAssets] = useState<SelectedAsset[]>([]);
   const [enabledTickers, setEnabledTickers] = useState<Record<string, boolean>>({});
   const [searchQuery, setSearchQuery] = useState("");
+  const [activeTab, setActiveTab] = useState("Todos");
   const [isInitialized, setIsInitialized] = useState(false);
 
   // --- Auto Refresh ---
@@ -66,7 +67,6 @@ export default function HomePage() {
   useEffect(() => {
     if (typeof window === "undefined") return;
 
-    // 1. Tickers customizados adicionais salvos no LocalStorage
     const localCustomTickers = localStorage.getItem("market-cards-custom-tickers");
     const localEnabled = localStorage.getItem("market-cards-enabled-tickers");
 
@@ -82,7 +82,6 @@ export default function HomePage() {
     if (localCustomTickers) {
       const customTickers = localCustomTickers.split(",").filter(Boolean);
       customTickers.forEach((ticker) => {
-        // Evita duplicar caso já esteja nos padrões
         if (initialAssets.some(a => a.ticker.toUpperCase() === ticker.toUpperCase())) return;
 
         const cmeParsed = parseCmeCode(ticker);
@@ -120,7 +119,6 @@ export default function HomePage() {
         });
       }
     } else {
-      // Habilita todos por padrão
       initialAssets.forEach((asset) => {
         enabledMap[asset.ticker] = true;
       });
@@ -138,10 +136,8 @@ export default function HomePage() {
   useEffect(() => {
     if (!isInitialized) return;
     
-    // Salva quais estão marcados
     localStorage.setItem("market-cards-enabled-tickers", JSON.stringify(enabledTickers));
 
-    // Salva a lista de customizados (os que não pertencem ao ASSETS padrão)
     const customTickers = selectedAssets
       .filter((asset) => !ASSETS.some(a => a.ticker === asset.ticker))
       .map((asset) => asset.ticker);
@@ -183,7 +179,6 @@ export default function HomePage() {
   // --- Handlers ---
   const handleAddAsset = useCallback(
     (asset: { nome: string; ticker: string; categoria: string }) => {
-      // Verifica se já existe na watchlist
       if (selectedAssets.some((a) => a.ticker.toUpperCase() === asset.ticker.toUpperCase())) {
         return;
       }
@@ -198,13 +193,13 @@ export default function HomePage() {
       setSelectedAssets((prev) => [...prev, newAsset]);
       setEnabledTickers((prev) => ({ ...prev, [asset.ticker]: true }));
       fetchQuotes([asset.ticker]);
-      setSearchQuery(""); // Limpa filtro
+      setSearchQuery(""); 
+      setActiveTab("Todos"); // Vai para "Todos" para ver o ativo adicionado
     },
     [selectedAssets, fetchQuotes]
   );
 
   const handleRemoveAsset = useCallback((ticker: string) => {
-    // Só deixa remover se for customizado (não for ativo padrão do ASSETS)
     if (ASSETS.some(a => a.ticker === ticker)) {
       alert("Ativos padrão do painel não podem ser removidos, apenas desmarcados.");
       return;
@@ -248,7 +243,21 @@ export default function HomePage() {
     );
   };
 
-  // Junta cotações e filtra pela busca do usuário
+  // Categoria badge helper
+  const getCategoryBadgeClass = (category: string) => {
+    switch (category) {
+      case "Grãos":
+        return "bg-emerald-500/10 text-emerald-400 border-emerald-500/20";
+      case "Energia":
+        return "bg-blue-500/10 text-blue-400 border-blue-500/20";
+      case "Moedas":
+        return "bg-purple-500/10 text-purple-400 border-purple-500/20";
+      default:
+        return "bg-amber-500/10 text-amber-400 border-amber-500/20";
+    }
+  };
+
+  // Filtra por texto da busca
   const assetsWithQuotes: SelectedAsset[] = selectedAssets.map((asset) => ({
     ...asset,
     quote: quotes.get(asset.ticker),
@@ -264,16 +273,21 @@ export default function HomePage() {
     );
   });
 
-  // Agrupamento por categorias
-  const categoriesMap: Record<string, SelectedAsset[]> = {};
-  filteredAssets.forEach((asset) => {
-    if (!categoriesMap[asset.categoria]) {
-      categoriesMap[asset.categoria] = [];
+  // Filtra por aba ativa
+  const displayedAssets = filteredAssets.filter((asset) => {
+    if (activeTab === "Todos") return true;
+    if (activeTab === "Outros") {
+      return !["Grãos", "Energia", "Moedas"].includes(asset.categoria);
     }
-    categoriesMap[asset.categoria].push(asset);
+    return asset.categoria === activeTab;
   });
 
-  const categories = Object.keys(categoriesMap);
+  // Decide as abas disponíveis
+  const baseTabs = ["Todos", "Grãos", "Energia", "Moedas"];
+  const hasOthers = selectedAssets.some(
+    (a) => !["Grãos", "Energia", "Moedas"].includes(a.categoria)
+  );
+  const tabs = hasOthers ? [...baseTabs, "Outros"] : baseTabs;
 
   // Gera os query params para a página de exportação
   const getShareLinkParams = () => {
@@ -321,7 +335,7 @@ export default function HomePage() {
             </nav>
           </div>
 
-          {/* Live countdown status */}
+          {/* Ao vivo refresh countdown */}
           <div className="flex items-center gap-3">
             <div className="flex items-center gap-2 bg-white/[0.02] border border-white/[0.06] rounded-xl px-3 py-1.5">
               <span className="flex h-2 w-2 relative">
@@ -363,7 +377,7 @@ export default function HomePage() {
       </header>
 
       {/* ===== Main View (Dashboard de Consulta) ===== */}
-      <main className="flex-1 max-w-7xl mx-auto w-full px-4 sm:px-6 lg:px-8 py-6 lg:py-8 space-y-6">
+      <main className="flex-1 max-w-7xl mx-auto w-full px-4 sm:px-6 lg:px-8 py-6 lg:py-8 space-y-5">
         {/* Search & Actions Panel */}
         <div className="flex flex-col md:flex-row items-center gap-4 justify-between bg-zinc-900/40 border border-white/[0.06] p-4 rounded-2xl">
           <div className="w-full md:max-w-md flex gap-2">
@@ -405,131 +419,148 @@ export default function HomePage() {
           </div>
         </div>
 
-        {/* Dashboard Grid por Categorias */}
-        <div className="space-y-8">
-          {categories.length === 0 ? (
-            <div className="bg-zinc-900/30 border border-white/[0.06] rounded-2xl py-16 text-center text-zinc-500 text-sm">
-              Nenhum ativo corresponde à busca ou o painel está vazio.
+        {/* SINGLE UNIFIED DASHBOARD CARD */}
+        <div className="bg-zinc-900/30 border border-white/[0.06] rounded-2xl overflow-hidden shadow-2xl flex flex-col">
+          {/* TAB BAR FOR QUICK CATEGORY FILTERING */}
+          <div className="flex items-center justify-between border-b border-white/[0.06] bg-white/[0.01] px-6 py-3 flex-wrap gap-3">
+            <div className="flex items-center gap-1.5">
+              {tabs.map((tab) => {
+                const isActive = activeTab === tab;
+                return (
+                  <button
+                    key={tab}
+                    onClick={() => setActiveTab(tab)}
+                    className={`px-3 py-1.5 rounded-lg text-xs font-semibold uppercase tracking-wider transition-all cursor-pointer
+                      ${isActive 
+                        ? "bg-indigo-500/15 text-indigo-400 border border-indigo-500/20 shadow-inner" 
+                        : "text-zinc-400 hover:text-zinc-200 hover:bg-white/[0.03] border border-transparent"
+                      }`}
+                  >
+                    {tab}
+                  </button>
+                );
+              })}
             </div>
-          ) : (
-            categories.map((catName) => {
-              const items = categoriesMap[catName];
-              return (
-                <div key={catName} className="space-y-3">
-                  {/* Categoria Header */}
-                  <div className="flex items-center gap-2 px-1">
-                    <span className="text-xs uppercase tracking-widest font-bold text-indigo-400 bg-indigo-500/10 px-2.5 py-1 rounded-md border border-indigo-500/20">
-                      {catName}
-                    </span>
-                    <span className="text-zinc-500 text-xs">({items.length} ativos)</span>
-                  </div>
+            
+            <div className="text-xs text-zinc-500 font-medium">
+              Exibindo {displayedAssets.length} de {assetsWithQuotes.length} ativos
+            </div>
+          </div>
 
-                  {/* Categoria Tabela */}
-                  <div className="bg-zinc-900/30 border border-white/[0.06] rounded-2xl overflow-hidden shadow-xl">
-                    <div className="overflow-x-auto">
-                      <table className="w-full border-collapse text-left">
-                        <thead>
-                          <tr className="border-b border-white/[0.06] bg-white/[0.02] text-xs font-semibold text-zinc-400 uppercase tracking-wider">
-                            <th className="px-5 py-3.5 w-16 text-center">Exportar</th>
-                            <th className="px-5 py-3.5">Ativo</th>
-                            <th className="px-5 py-3.5">Código (Ticker)</th>
-                            <th className="px-5 py-3.5 text-right">Preço Atual</th>
-                            <th className="px-5 py-3.5 text-center">Variação Diária (1D)</th>
-                            <th className="px-5 py-3.5 text-center">Variação Semanal (1S)</th>
-                            <th className="px-5 py-3.5 text-center">Atualizado</th>
-                            {catName === "Ativos Personalizados" || catName === "Contratos Futuros CME" ? (
-                              <th className="px-5 py-3.5 text-center w-16">Ações</th>
-                            ) : null}
-                          </tr>
-                        </thead>
-                        <tbody className="divide-y divide-white/[0.04]">
-                          {items.map((asset) => {
-                            const q = asset.quote;
-                            const isChecked = enabledTickers[asset.ticker] !== false;
-                            const isCustom = !ASSETS.some(a => a.ticker === asset.ticker);
+          {/* MAIN UNIFIED TABLES */}
+          <div className="overflow-x-auto">
+            <table className="w-full border-collapse text-left">
+              <thead>
+                <tr className="border-b border-white/[0.06] bg-white/[0.01] text-xs font-semibold text-zinc-400 uppercase tracking-wider">
+                  <th className="px-6 py-4 w-20 text-center">Exportar</th>
+                  <th className="px-6 py-4">Ativo</th>
+                  <th className="px-6 py-4">Código (Ticker)</th>
+                  <th className="px-6 py-4">Categoria</th>
+                  <th className="px-6 py-4 text-right">Preço Atual</th>
+                  <th className="px-6 py-4 text-center">Variação Diária (1D)</th>
+                  <th className="px-6 py-4 text-center">Variação Semanal (1S)</th>
+                  <th className="px-6 py-4 text-center">Atualizado</th>
+                  <th className="px-6 py-4 text-center w-16">Ações</th>
+                </tr>
+              </thead>
+              <tbody className="divide-y divide-white/[0.04]">
+                {displayedAssets.length === 0 ? (
+                  <tr>
+                    <td colSpan={9} className="px-6 py-16 text-center text-zinc-500 text-sm">
+                      Nenhum ativo corresponde à busca ou à categoria selecionada.
+                    </td>
+                  </tr>
+                ) : (
+                  displayedAssets.map((asset) => {
+                    const q = asset.quote;
+                    const isChecked = enabledTickers[asset.ticker] !== false;
+                    const isCustom = !ASSETS.some(a => a.ticker === asset.ticker);
 
-                            return (
-                              <tr key={asset.ticker} className="hover:bg-white/[0.02] transition-colors group">
-                                {/* Checkbox Exportar */}
-                                <td className="px-5 py-3 text-center">
-                                  <input
-                                    type="checkbox"
-                                    checked={isChecked}
-                                    onChange={() => handleToggleTicker(asset.ticker)}
-                                    className="w-4 h-4 rounded text-indigo-600 bg-zinc-800 border-zinc-700 focus:ring-indigo-500 cursor-pointer"
-                                    title="Marcar para incluir no Card final"
-                                  />
-                                </td>
+                    return (
+                      <tr key={asset.ticker} className="hover:bg-white/[0.02] transition-colors group">
+                        {/* Checkbox Exportar */}
+                        <td className="px-6 py-4 text-center">
+                          <input
+                            type="checkbox"
+                            checked={isChecked}
+                            onChange={() => handleToggleTicker(asset.ticker)}
+                            className="w-4.5 h-4.5 rounded text-indigo-600 bg-zinc-800 border-zinc-700 focus:ring-indigo-500 cursor-pointer"
+                            title="Marcar para incluir no Card final"
+                          />
+                        </td>
 
-                                {/* Asset Name */}
-                                <td className="px-5 py-3 font-semibold text-zinc-200 text-sm">
-                                  {asset.nome}
-                                </td>
+                        {/* Asset Name */}
+                        <td className="px-6 py-4 font-semibold text-zinc-200 text-sm">
+                          {asset.nome}
+                        </td>
 
-                                {/* Ticker */}
-                                <td className="px-5 py-3 text-xs text-zinc-500 font-mono">
-                                  {asset.ticker}
-                                </td>
+                        {/* Ticker */}
+                        <td className="px-6 py-4 text-xs text-zinc-500 font-mono">
+                          {asset.ticker}
+                        </td>
 
-                                {/* Current Price */}
-                                <td className="px-5 py-3 text-right font-mono font-medium text-sm text-zinc-200">
-                                  {loading && !q ? (
-                                    <span className="inline-block w-16 h-4 bg-white/[0.05] animate-pulse rounded" />
-                                  ) : (
-                                    formatPrice(q?.price, q?.currency || "USD")
-                                  )}
-                                </td>
+                        {/* Category Badge */}
+                        <td className="px-6 py-4">
+                          <span className={`inline-flex items-center px-2.5 py-0.5 rounded text-[10px] font-bold uppercase tracking-wider border ${getCategoryBadgeClass(asset.categoria)}`}>
+                            {asset.categoria}
+                          </span>
+                        </td>
 
-                                {/* 1D Change */}
-                                <td className="px-5 py-3 text-center">
-                                  {loading && !q ? (
-                                    <span className="inline-block w-12 h-4 bg-white/[0.05] animate-pulse rounded" />
-                                  ) : (
-                                    formatChange(q?.changePercent)
-                                  )}
-                                </td>
+                        {/* Current Price */}
+                        <td className="px-6 py-4 text-right font-mono font-medium text-sm text-zinc-200">
+                          {loading && !q ? (
+                            <span className="inline-block w-16 h-4 bg-white/[0.05] animate-pulse rounded" />
+                          ) : (
+                            formatPrice(q?.price, q?.currency || "USD")
+                          )}
+                        </td>
 
-                                {/* 1S Change */}
-                                <td className="px-5 py-3 text-center">
-                                  {loading && !q ? (
-                                    <span className="inline-block w-12 h-4 bg-white/[0.05] animate-pulse rounded" />
-                                  ) : (
-                                    formatChange(q?.changePercentWeekly)
-                                  )}
-                                </td>
+                        {/* 1D Change */}
+                        <td className="px-6 py-4 text-center">
+                          {loading && !q ? (
+                            <span className="inline-block w-12 h-4 bg-white/[0.05] animate-pulse rounded" />
+                          ) : (
+                            formatChange(q?.changePercent)
+                          )}
+                        </td>
 
-                                {/* Last Updated */}
-                                <td className="px-5 py-3 text-center text-xs text-zinc-500">
-                                  {q?.marketTime ? new Date(q.marketTime).toLocaleTimeString("pt-BR", { hour: "2-digit", minute: "2-digit" }) : "-"}
-                                </td>
+                        {/* 1S Change */}
+                        <td className="px-6 py-4 text-center">
+                          {loading && !q ? (
+                            <span className="inline-block w-12 h-4 bg-white/[0.05] animate-pulse rounded" />
+                          ) : (
+                            formatChange(q?.changePercentWeekly)
+                          )}
+                        </td>
 
-                                {/* Actions (Delete if custom) */}
-                                {catName === "Ativos Personalizados" || catName === "Contratos Futuros CME" ? (
-                                  <td className="px-5 py-3 text-center">
-                                    {isCustom ? (
-                                      <button
-                                        onClick={() => handleRemoveAsset(asset.ticker)}
-                                        className="p-1 rounded-lg text-zinc-500 hover:text-red-400 hover:bg-red-500/10 transition-colors opacity-0 group-hover:opacity-100 focus:opacity-100 cursor-pointer"
-                                        title="Remover ativo"
-                                      >
-                                        <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
-                                          <path strokeLinecap="round" strokeLinejoin="round" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
-                                        </svg>
-                                      </button>
-                                    ) : null}
-                                  </td>
-                                ) : null}
-                              </tr>
-                            );
-                          })}
-                        </tbody>
-                      </table>
-                    </div>
-                  </div>
-                </div>
-              );
-            })
-          )}
+                        {/* Last Updated */}
+                        <td className="px-6 py-4 text-center text-xs text-zinc-500">
+                          {q?.marketTime ? new Date(q.marketTime).toLocaleTimeString("pt-BR", { hour: "2-digit", minute: "2-digit" }) : "-"}
+                        </td>
+
+                        {/* Actions (Delete if custom) */}
+                        <td className="px-6 py-4 text-center">
+                          {isCustom ? (
+                            <button
+                              onClick={() => handleRemoveAsset(asset.ticker)}
+                              className="p-1 rounded-lg text-zinc-500 hover:text-red-400 hover:bg-red-500/10 transition-colors opacity-0 group-hover:opacity-100 focus:opacity-100 cursor-pointer"
+                              title="Remover ativo"
+                            >
+                              <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                                <path strokeLinecap="round" strokeLinejoin="round" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
+                              </svg>
+                            </button>
+                          ) : (
+                            <span className="text-[10px] text-zinc-600">-</span>
+                          )}
+                        </td>
+                      </tr>
+                    );
+                  })
+                )}
+              </tbody>
+            </table>
+          </div>
         </div>
       </main>
 
